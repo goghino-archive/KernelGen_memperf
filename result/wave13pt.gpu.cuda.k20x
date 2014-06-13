@@ -1,0 +1,322 @@
+./wave13pt 512 256 256 10 -- Dmitry reference
+m0 = 0.680375, m1 = -0.035206, m2 = 0.094366
+initial mean = 0.000024
+init time = 0.040779 sec
+device buffer alloc time = 0.134911 sec
+data load time = 0.068273 sec (5.492644 GB/sec)
+compute time = 0.062564 sec
+data save time = 0.021035 sec (5.942461 GB/sec)
+device buffer free time = 0.000372 sec
+final mean = 0.000173
+Application 2349340 resources: utime ~1s, stime ~1s, Rss ~475820, inblocks ~379, outblocks ~332
+
+./wave13pt 512 256 256 10 -- Mine, original
+m0 = 0.680375, m1 = -0.035206, m2 = 0.094366
+initial mean = 0.000024
+init time = 0.216314 sec
+device buffer alloc time = 0.257155 sec
+data load time = 0.296431 sec (1.265052 GB/sec)
+compute time = 0.150158 sec
+data save time = 0.129524 sec (0.965072 GB/sec)
+device buffer free time = 0.000980 sec
+final mean = 0.000173
+
+
+#-------------------------------------------------------------------------------
+                                Ad. 2
+#-------------------------------------------------------------------------------
+nvprof -o profile_default_d -s ./wave13pt 512 256 256 10 0
+m0 = 0.680375, m1 = -0.035206, m2 = 0.094366
+initial mean = 0.000024
+==1317== NVPROF is profiling process 1317, command: ./wave13pt 512 256 256 10 0
+init time = 0.294601 sec
+device buffer alloc time = 0.284433 sec
+data load time = 0.290649 sec (1.290215 GB/sec)
+compute time = 0.147949 sec
+data save time = 0.066154 sec (1.889539 GB/sec)
+final mean = 0.000173
+device buffer free time = 0.000965 sec
+==1317== Profiling application: ./wave13pt 512 256 256 10 0
+==1317== Profiling result:
+Time(%)      Time     Calls       Avg       Min       Max  Name
+ 59.10%  289.25ms         3  96.417ms  90.376ms  101.16ms  [CUDA memcpy HtoD]
+ 27.46%  134.40ms        10  13.440ms  7.7941ms  24.582ms  wave13pt_d
+ 13.44%  65.786ms         1  65.786ms  65.786ms  65.786ms  [CUDA memcpy DtoH]
+
+==1317== API calls:
+Time(%)      Time     Calls       Avg       Min       Max  Name
+ 45.04%  356.79ms         4  89.197ms  66.151ms  102.30ms  cudaMemcpy
+ 35.90%  284.43ms         3  94.809ms  357.08us  283.71ms  cudaMalloc
+ 18.59%  147.27ms        10  14.727ms  7.8682ms  24.664ms  cudaDeviceSynchronize
+  0.21%  1.6939ms       332  5.1010us     246ns  191.10us  cuDeviceGetAttribute
+  0.12%  950.88us         3  316.96us  266.92us  411.61us  cudaFree
+  0.07%  564.94us        10  56.494us  16.130us  392.70us  cudaLaunch
+  0.03%  218.06us         4  54.515us  46.412us  66.368us  cuDeviceTotalMem
+  0.02%  176.21us         4  44.052us  39.149us  54.851us  cuDeviceGetName
+  0.01%  81.648us         1  81.648us  81.648us  81.648us  cudaGetDeviceProperties
+  0.00%  36.249us       100     362ns     239ns  2.1500us  cudaSetupArgument
+  0.00%  8.2470us         1  8.2470us  8.2470us  8.2470us  cudaDeviceSetCacheConfig
+  0.00%  7.8180us        10     781ns     424ns  3.0050us  cudaConfigureCall
+  0.00%  4.0710us        10     407ns     340ns     660ns  cudaGetLastError
+  0.00%  2.7540us         1  2.7540us  2.7540us  2.7540us  cudaGetDeviceCount
+  0.00%  2.5090us         8     313ns     260ns     393ns  cuDeviceGet
+  0.00%  2.2350us         2  1.1170us     435ns  1.8000us  cuDeviceGetCount
+==1317== Generated result file: /home/jkardos/memperf/cuda/profile_default_d
+#-------------------------------------------------------------------------------
+
+jkardos@tesla-cmc:~/memperf/cuda$ nvprof -o profile_uvm_d -s ./wave13pt 512 256 256 10 2
+m0 = 0.680375, m1 = -0.035206, m2 = 0.094366
+==4073== NVPROF is profiling process 4073, command: ./wave13pt 512 256 256 10 2
+init time = 0.327405 sec
+initial mean = 0.000024
+device buffer alloc time = 3.958303 sec
+data load time = 0.000000 sec (8720930.232558 GB/sec)
+compute time = 0.180134 sec
+data save time = 0.000000 sec (2500000.000000 GB/sec)
+final mean = 0.000173
+device buffer free time = 0.174526 sec
+==4073== Profiling application: ./wave13pt 512 256 256 10 2
+==4073== Profiling result:
+Time(%)      Time     Calls       Avg       Min       Max  Name
+100.00%  72.153ms        10  7.2153ms  7.1957ms  7.2274ms  wave13pt_d
+
+==4073== API calls:
+Time(%)      Time     Calls       Avg       Min       Max  Name
+ 49.78%  354.35ms         3  118.12ms  432.49us  353.40ms  cudaMallocManaged
+ 24.51%  174.51ms         3  58.169ms  464.35us  164.00ms  cudaFree
+ 14.54%  103.48ms        10  10.348ms  16.657us  103.16ms  cudaLaunch
+ 10.75%  76.504ms        10  7.6504ms  6.7424ms  9.7608ms  cudaDeviceSynchronize
+  0.28%  1.9586ms       332  5.8990us     268ns  243.74us  cuDeviceGetAttribute
+  0.07%  481.67us         1  481.67us  481.67us  481.67us  cudaDeviceSetCacheConfig
+  0.03%  238.88us         4  59.719us  55.991us  65.795us  cuDeviceTotalMem
+  0.03%  195.77us         4  48.942us  43.633us  59.764us  cuDeviceGetName
+  0.01%  98.273us         1  98.273us  98.273us  98.273us  cudaGetDeviceProperties
+  0.01%  42.665us       100     426ns     237ns  1.7020us  cudaSetupArgument
+  0.00%  10.882us        10  1.0880us     472ns  2.3870us  cudaConfigureCall
+  0.00%  5.1070us        10     510ns     365ns  1.4150us  cudaGetLastError
+  0.00%  4.1270us         8     515ns     333ns     791ns  cuDeviceGet
+  0.00%  2.6850us         2  1.3420us     637ns  2.0480us  cuDeviceGetCount
+  0.00%  2.4070us         1  2.4070us  2.4070us  2.4070us  cudaGetDeviceCount
+==4073== Generated result file: /home/jkardos/memperf/cuda/profile_uvm_d
+#-------------------------------------------------------------------------------
+
+jkardos@tesla-cmc:~/memperf/cuda$ nvprof -o profile_uvm_d_force -s ./wave13pt 512 256 256 10 2
+m0 = 0.680375, m1 = -0.035206, m2 = 0.094366
+==16161== NVPROF is profiling process 16161, command: ./wave13pt 512 256 256 10 2
+init time = 0.294089 sec
+initial mean = 0.000024
+device buffer alloc time = 4.132550 sec
+data load time = 0.000000 sec (4261363.636364 GB/sec)
+compute time = 0.201229 sec
+data save time = 0.000000 sec (2358490.566038 GB/sec)
+final mean = 0.000173
+device buffer free time = 0.010457 sec
+==16161== Profiling application: ./wave13pt 512 256 256 10 2
+==16161== Profiling result:
+Time(%)      Time     Calls       Avg       Min       Max  Name
+100.00%  72.150ms        10  7.2150ms  7.1934ms  7.2254ms  wave13pt_d
+
+==16161== API calls:
+Time(%)      Time     Calls       Avg       Min       Max  Name
+ 79.82%  918.56ms         3  306.19ms  355.36us  917.71ms  cudaMallocManaged    ################
+ 11.24%  129.40ms        10  12.940ms  17.030us  129.21ms  cudaLaunch
+  6.23%  71.708ms        10  7.1708ms  6.6937ms  7.2340ms  cudaDeviceSynchronize
+  1.61%  18.517ms         1  18.517ms  18.517ms  18.517ms  cudaDeviceSetCacheConfig
+  0.91%  10.444ms         3  3.4812ms  461.97us  9.3768ms  cudaFree
+  0.14%  1.6619ms       332  5.0050us     231ns  188.83us  cuDeviceGetAttribute
+  0.02%  216.06us         4  54.015us  48.102us  63.701us  cuDeviceTotalMem
+  0.01%  169.28us         4  42.318us  38.517us  48.511us  cuDeviceGetName
+  0.01%  98.452us         1  98.452us  98.452us  98.452us  cudaGetDeviceProperties
+  0.00%  34.932us       100     349ns     240ns  2.0190us  cudaSetupArgument
+  0.00%  8.2450us        10     824ns     464ns  2.7700us  cudaConfigureCall
+  0.00%  4.5020us        10     450ns     337ns  1.3410us  cudaGetLastError
+  0.00%  2.6060us         1  2.6060us  2.6060us  2.6060us  cudaGetDeviceCount
+  0.00%  2.4040us         8     300ns     257ns     365ns  cuDeviceGet
+  0.00%  1.9480us         2     974ns     411ns  1.5370us  cuDeviceGetCount
+==16161== Generated result file: /home/jkardos/memperf/cuda/profile_uvm_d_force
+
+jkardos@tesla-cmc:~/memperf/cuda$ nvprof -o profile_uvm_d_force -s ./wave13pt 512 256 256 10 2
+m0 = 0.680375, m1 = -0.035206, m2 = 0.094366
+==13473== NVPROF is profiling process 13473, command: ./wave13pt 512 256 256 10 2
+init time = 0.305355 sec
+initial mean = 0.000024
+device buffer alloc time = 3.672895 sec
+data load time = 0.000000 sec (6465517.241379 GB/sec)
+compute time = 0.235336 sec
+data save time = 0.000000 sec (1838235.294118 GB/sec)
+final mean = 0.000173
+device buffer free time = 0.007511 sec
+==13473== Profiling application: ./wave13pt 512 256 256 10 2
+==13473== Profiling result:
+Time(%)      Time     Calls       Avg       Min       Max  Name
+100.00%  134.20ms        10  13.420ms  7.8261ms  24.376ms  wave13pt_d
+
+==13473== API calls:
+Time(%)      Time     Calls       Avg       Min       Max  Name
+ 57.70%  334.77ms         3  111.59ms  467.82us  333.70ms  cudaMallocManaged    ################
+ 23.19%  134.53ms        10  13.453ms  7.9038ms  24.459ms  cudaDeviceSynchronize
+ 17.35%  100.66ms        10  10.066ms  18.161us  100.36ms  cudaLaunch
+  1.29%  7.4984ms         3  2.4995ms  467.31us  6.4481ms  cudaFree
+  0.30%  1.7426ms       332  5.2480us     245ns  222.46us  cuDeviceGetAttribute
+  0.08%  459.94us         1  459.94us  459.94us  459.94us  cudaDeviceSetCacheConfig
+  0.04%  218.30us         4  54.574us  47.392us  64.636us  cuDeviceTotalMem
+  0.03%  172.14us         4  43.036us  39.391us  50.743us  cuDeviceGetName
+  0.02%  88.237us         1  88.237us  88.237us  88.237us  cudaGetDeviceProperties
+  0.01%  38.549us       100     385ns     238ns  1.8600us  cudaSetupArgument
+  0.00%  9.5100us        10     951ns     367ns  2.7940us  cudaConfigureCall
+  0.00%  4.6710us         1  4.6710us  4.6710us  4.6710us  cudaGetDeviceCount
+  0.00%  4.3600us        10     436ns     294ns  1.0550us  cudaGetLastError
+  0.00%  2.7190us         2  1.3590us     548ns  2.1710us  cuDeviceGetCount
+  0.00%  2.5510us         8     318ns     269ns     430ns  cuDeviceGet
+==13473== Generated result file: /home/jkardos/memperf/cuda/profile_uvm_d_force
+#-------------------------------------------------------------------------------
+
+jkardos@tesla-cmc:~/memperf/cuda$ nvprof -o profile_uvm_d_force1 --unified-memory-profiling per-process-device -s ./wave13pt 512 256 256 10 2
+m0 = 0.680375, m1 = -0.035206, m2 = 0.094366
+==9849== NVPROF is profiling process 9849, command: ./wave13pt 512 256 256 10 2
+==9849== Warning: Unified Memory Profiling is not supported on this configuration
+init time = 0.294919 sec
+initial mean = 0.000024
+device buffer alloc time = 4.060016 sec
+data load time = 0.000000 sec (7352941.176471 GB/sec)
+compute time = 0.170959 sec
+data save time = 0.000000 sec (2403846.153846 GB/sec)
+final mean = 0.000173
+device buffer free time = 0.007619 sec
+==9849== Profiling application: ./wave13pt 512 256 256 10 2
+==9849== Profiling result:
+Time(%)      Time     Calls       Avg       Min       Max  Name
+100.00%  72.133ms        10  7.2133ms  7.1949ms  7.2287ms  wave13pt_d
+
+==9849== Unified Memory profiling result:
+Device "Tesla K20c (0)"
+                              Count         Avg       Min       Max
+   Host To Device (bytes)         6  2.0133e+08         0  4.03e+08
+   Device To Host (bytes)      1707   285621.01         0  5.37e+08
+          CPU Page faults      1707    55354.93         0    131072
+
+==9849== API calls:
+Time(%)      Time     Calls       Avg       Min       Max  Name
+ 82.48%  851.19ms         3  283.73ms  414.88us  850.31ms  cudaMallocManaged
+  9.57%  98.712ms        10  9.8712ms  23.763us  98.164ms  cudaLaunch
+  6.98%  72.065ms        10  7.2065ms  6.7524ms  7.2893ms  cudaDeviceSynchronize
+  0.74%  7.6049ms         3  2.5350ms  474.38us  6.5144ms  cudaFree
+  0.17%  1.7510ms       332  5.2740us     230ns  203.47us  cuDeviceGetAttribute
+  0.02%  253.44us         4  63.359us  51.712us  95.913us  cuDeviceTotalMem
+  0.02%  225.12us         4  56.280us  39.900us  99.903us  cuDeviceGetName
+  0.01%  114.25us         1  114.25us  114.25us  114.25us  cudaGetDeviceProperties
+  0.00%  43.361us       100     433ns     227ns  1.9900us  cudaSetupArgument
+  0.00%  14.843us        10  1.4840us     656ns  3.6750us  cudaConfigureCall
+  0.00%  13.615us         1  13.615us  13.615us  13.615us  cudaDeviceSetCacheConfig
+  0.00%  7.8000us        11     709ns     244ns  2.9420us  cuDeviceGet
+  0.00%  4.2350us        10     423ns     306ns  1.0510us  cudaGetLastError
+  0.00%  2.4710us         1  2.4710us  2.4710us  2.4710us  cudaGetDeviceCount
+  0.00%  2.2110us         2  1.1050us     540ns  1.6710us  cuDeviceGetCount
+==9849== Generated result file: /home/jkardos/memperf/cuda/profile_uvm_d_force1
+
+#-------------------------------------------------------------------------------
+                                Ad. 1
+#-------------------------------------------------------------------------------
+
+jkardos@tesla-cmc:~/memperf/cuda$ nvprof -o profile_uvm_h -s ./wave13pt 512 256 256 10 1
+m0 = 0.680375, m1 = -0.035206, m2 = 0.094366
+==4795== NVPROF is profiling process 4795, command: ./wave13pt 512 256 256 10 1
+init time = 0.370215 sec
+initial mean = 0.000024
+device buffer alloc time = 4.118406 sec
+data load time = 0.000000 sec (2358490.566038 GB/sec)
+compute time = 4.785331 sec
+data save time = 0.000000 sec (3676470.588235 GB/sec)
+final mean = 0.000173
+device buffer free time = 0.023337 sec
+==4795== Profiling application: ./wave13pt 512 256 256 10 1
+==4795== Profiling result:
+No kernels were profiled.
+
+==4795== API calls:
+Time(%)      Time     Calls       Avg       Min       Max  Name
+ 93.68%  388.06ms         3  129.35ms  385.56us  387.18ms  cudaMallocManaged
+  5.63%  23.316ms         3  7.7721ms  7.0364ms  8.3650ms  cudaFree
+  0.45%  1.8457ms       332  5.5590us     265ns  211.62us  cuDeviceGetAttribute
+  0.12%  509.59us         1  509.59us  509.59us  509.59us  cudaDeviceSetCacheConfig
+  0.06%  235.51us         4  58.877us  50.915us  69.668us  cuDeviceTotalMem
+  0.05%  196.24us         4  49.060us  43.866us  59.870us  cuDeviceGetName
+  0.02%  88.510us         1  88.510us  88.510us  88.510us  cudaGetDeviceProperties
+  0.00%  3.1010us         8     387ns     304ns     480ns  cuDeviceGet
+  0.00%  2.9160us         2  1.4580us     598ns  2.3180us  cuDeviceGetCount
+  0.00%  2.8710us         1  2.8710us  2.8710us  2.8710us  cudaGetDeviceCount
+==4795== Generated result file: /home/jkardos/memperf/cuda/profile_uvm_h
+#-------------------------------------------------------------------------------
+
+jkardos@tesla-cmc:~/memperf/cuda$ nvprof -o profile_uvm_h_force -s ./wave13pt 512 256 256 10 1
+m0 = 0.680375, m1 = -0.035206, m2 = 0.094366
+==12469== NVPROF is profiling process 12469, command: ./wave13pt 512 256 256 10 1
+init time = 0.345648 sec
+initial mean = 0.000024
+device buffer alloc time = 4.019956 sec
+data load time = 0.000000 sec (4870129.870130 GB/sec)
+compute time = 4.841615 sec
+data save time = 0.000000 sec (3125000.000000 GB/sec)
+final mean = 0.000173
+device buffer free time = 0.024049 sec
+==12469== Profiling application: ./wave13pt 512 256 256 10 1
+==12469== Profiling result:
+No kernels were profiled.
+
+==12469== API calls:
+Time(%)      Time     Calls       Avg       Min       Max  Name
+ 93.09%  365.20ms         3  121.73ms  470.91us  363.63ms  cudaMallocManaged
+  6.12%  24.025ms         3  8.0084ms  7.4087ms  8.5215ms  cudaFree
+  0.53%  2.0665ms       332  6.2240us     400ns  229.75us  cuDeviceGetAttribute
+  0.11%  449.92us         1  449.92us  449.92us  449.92us  cudaDeviceSetCacheConfig
+  0.07%  259.07us         4  64.767us  57.108us  76.324us  cuDeviceTotalMem
+  0.05%  210.65us         4  52.661us  49.043us  62.279us  cuDeviceGetName
+  0.02%  81.510us         1  81.510us  81.510us  81.510us  cudaGetDeviceProperties
+  0.00%  4.1520us         8     519ns     460ns     631ns  cuDeviceGet
+  0.00%  3.1220us         1  3.1220us  3.1220us  3.1220us  cudaGetDeviceCount
+  0.00%  2.9110us         2  1.4550us     642ns  2.2690us  cuDeviceGetCount
+==12469== Generated result file: /home/jkardos/memperf/cuda/profile_uvm_h_force
+#-------------------------------------------------------------------------------
+
+jkardos@tesla-cmc:~/memperf/cuda$ nvprof -o profile_uvm_h_force1 --unified-memory-profiling per-process-device -s ./wave13pt 512 256 256 10 1
+m0 = 0.680375, m1 = -0.035206, m2 = 0.094366
+==8710== NVPROF is profiling process 8710, command: ./wave13pt 512 256 256 10 1
+==8710== Warning: Unified Memory Profiling is not supported on this configuration
+init time = 0.340221 sec
+initial mean = 0.000024
+device buffer alloc time = 3.514187 sec
+data load time = 0.000000 sec (6250000.000000 GB/sec)
+compute time = 4.861860 sec
+data save time = 0.000000 sec (4464285.714286 GB/sec)
+final mean = 0.000173
+device buffer free time = 0.031133 sec
+==8710== Profiling application: ./wave13pt 512 256 256 10 1
+==8710== Profiling result:
+No kernels were profiled.
+
+==8710== Unified Memory profiling result:
+Device "Tesla K20c (0)"
+                              Count         Avg       Min       Max
+   Device To Host (bytes)      1548  1639910.86         0  4.03e+08
+          CPU Page faults      1548    49171.35         0     98304
+
+==8710== API calls:
+Time(%)      Time     Calls       Avg       Min       Max  Name
+ 88.61%  258.99ms         3  86.330ms  384.27us  258.14ms  cudaMallocManaged
+ 10.64%  31.109ms         3  10.370ms  9.9862ms  10.734ms  cudaFree
+  0.57%  1.6659ms       332  5.0170us     232ns  189.67us  cuDeviceGetAttribute
+  0.07%  219.00us         4  54.748us  46.536us  68.581us  cuDeviceTotalMem
+  0.06%  188.62us         4  47.154us  39.103us  67.747us  cuDeviceGetName
+  0.03%  74.779us         1  74.779us  74.779us  74.779us  cudaGetDeviceProperties
+  0.00%  12.435us         1  12.435us  12.435us  12.435us  cudaDeviceSetCacheConfig
+  0.00%  4.8580us        11     441ns     244ns     828ns  cuDeviceGet
+  0.00%  2.7380us         1  2.7380us  2.7380us  2.7380us  cudaGetDeviceCount
+  0.00%  2.3480us         2  1.1740us     470ns  1.8780us  cuDeviceGetCount
+==8710== Generated result file: /home/jkardos/memperf/cuda/profile_uvm_h_force1
+#-------------------------------------------------------------------------------
+
+make test_default_h 
+m0 = 0.680375, m1 = -0.035206, m2 = 0.094366
+initial mean = 0.000024
+compute time = 1.118599 sec
+final mean = 0.000173e
