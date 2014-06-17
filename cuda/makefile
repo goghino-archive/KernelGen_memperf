@@ -11,7 +11,7 @@
 -include ../../makefile.in
 
 # Verbose setting
-VERBOSE ?= 0
+VERBOSE ?= 1
 SILENT ?= @
 ifeq ($(VERBOSE), 1)
 SILENT =
@@ -23,7 +23,17 @@ real ?= float
 # PGI/OpenACC compiler/linker options
 GPUARCH ?= 30
 GPUCUDA ?= 5.0
-NVCC ?= nvcc -I. -I.. -O3 -arch=sm_$(GPUARCH)
+
+
+#flags for compiling with OpenMP
+OMP ?= 1
+NVCCFLAGS ?= -Xcompiler -lnvToolsExt
+ifeq ($(OMP), 1)
+NVCCFLAGS += -Xcompiler -fopenmp
+LIB ?= -lgomp
+endif
+
+NVCC ?= nvcc -I. -I.. -O3 -arch=sm_$(GPUARCH) $(NVCCFLAGS) $(LIB)
 
 # Default problem domain dimensions
 NX ?= 512
@@ -39,7 +49,7 @@ VERSION ?= 0
 all: wave13pt
 
 wave13pt: wave13pt.o timing.o cuda_profiling.o
-	$(SILENT)$(NVCC) $^ -o $@ -I /opt/cuda/lib -lrt -Xlinker --wrap=cudaLaunch -Xcompiler -rdynamic
+	$(SILENT)$(NVCC) $^ -o $@ -I /opt/cuda/lib -lrt -lnvToolsExt -Xlinker --wrap=cudaLaunch -Xcompiler -rdynamic
 
 wave13pt.o: ../wave13pt.cu ../timing.h cuda_profiling.h
 	$(SILENT)$(NVCC) -Dreal=$(real) -c $< -o $@

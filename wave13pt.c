@@ -16,6 +16,7 @@
 #include <stdlib.h>
 
 #include "timing.h"
+#include "nvToolsExt.h"
 
 #if defined(__CUDACC__)
     #include "cuda_profiling.h"
@@ -60,6 +61,7 @@ void wave13pt_h(const int nx, const int ny, const int ns,
 	int i_increment = i_stride;
 
 #if defined(_OPENMP)
+    //fprintf(stderr, "OPENMP version\n");
 	#pragma omp parallel for
 #endif
 	for (int k = 2 + k_offset; k < ns - 2; k += k_increment)
@@ -226,6 +228,7 @@ extern "C" __global__ void init_grid_d(real* w0, real* w1, real* w2, curandState
 
 int main(int argc, char* argv[])
 {
+	nvtxRangePushA("parse_args");
 	if (argc != 6)
 	{
 		printf("Usage: %s <nx> <ny> <ns> <nt> <version>\n", argv[0]);
@@ -250,13 +253,14 @@ int main(int argc, char* argv[])
 	parse_arg(ny, argv[2]);
 	parse_arg(ns, argv[3]);
 	parse_arg(nt, argv[4]);
-    parse_arg(version, argv[5]);
+	parse_arg(version, argv[5]);
 
 	real m0 = real_rand();
 	real m1 = real_rand() / 6.;
 	real m2 = real_rand() / 6.;
 
 	printf("m0 = %f, m1 = %f, m2 = %f\n", m0, m1, m2);
+	nvtxRangePop();
 
 	size_t szarray = (size_t)nx * ny * ns;
 	size_t szarrayb = szarray * sizeof(real);
@@ -268,6 +272,7 @@ int main(int argc, char* argv[])
 
     real mean = 0.0f;
 
+    nvtxRangePushA("host_allocation");
     if(version == DEFAULT){//allocate memory on host	
         w0 = (real*)memalign(MEMALIGN, szarrayb);
 	    w1 = (real*)memalign(MEMALIGN, szarrayb);
@@ -279,11 +284,13 @@ int main(int argc, char* argv[])
 		    exit(1);
 	    }
     }
+    nvtxRangePop();
 
 	//
 	// 1) Perform an empty offload, that should strip
 	// the initialization time from further offloads.
 	//
+    nvtxRangePushA("empty_offload");
 #if defined(__CUDACC__)
 	volatile struct timespec init_s, init_f;
 	get_time(&init_s);
@@ -293,12 +300,14 @@ int main(int argc, char* argv[])
 	double init_t = get_time_diff((struct timespec*)&init_s, (struct timespec*)&init_f);
 	if (!no_timing) printf("init time = %f sec\n", init_t);
 #endif
+    nvtxRangePop();
 
 	//
 	// 2) Allocate data on device, but do not copy anything.
 	//
 #if defined(__CUDACC__)
     real *w0_dev = NULL, *w1_dev = NULL, *w2_dev = NULL;
+    nvtxRangePushA("cuda_alloc");
 	volatile struct timespec alloc_s, alloc_f;
 	get_time(&alloc_s);
     if(version == DEFAULT) {//explicit memory model
@@ -313,6 +322,7 @@ int main(int argc, char* argv[])
 	get_time(&alloc_f);
 	double alloc_t = get_time_diff((struct timespec*)&alloc_s, (struct timespec*)&alloc_f);
 	if (!no_timing) printf("device buffer alloc time = %f sec\n", alloc_t);
+    nvtxRangePop();
 #endif
 
 #if defined(__CUDACC__)
@@ -322,7 +332,9 @@ int main(int argc, char* argv[])
 	kernel_configure_gird(1, nx, ny, ns, &config);
 #endif
 
+
     //random grid init
+    nvtxRangePushA("grid_init");
     if(1) 
     //if(version == DEFAULT)
     {
@@ -342,12 +354,14 @@ int main(int argc, char* argv[])
         fprintf(stderr, "w0, w1, w2 initialized\n");    
         cudaFree(state);
     }
+    nvtxRangePop();
 
 	//
 	// 3) Transfer data from host to device and leave it there,
 	// i.e. do not allocate deivce memory buffers.
 	//
 #if defined(__CUDACC__)
+    nvtxRangePushA("cuda_memcpy_explicit");
 	volatile struct timespec load_s, load_f;
 	get_time(&load_s);
     if(version == DEFAULT){
@@ -358,13 +372,15 @@ int main(int argc, char* argv[])
 	get_time(&load_f);
 	double load_t = get_time_diff((struct timespec*)&load_s, (struct timespec*)&load_f);
 	if (!no_timing) printf("data load time = %f sec (%f GB/sec)\n", load_t, 3 * szarrayb / (load_t * 1024 * 1024 * 1024));
+    nvtxRangePop();
 #endif
 
 	//
 	// 4) Perform data processing iterations, keeping all data
 	// on device.
 	//
-	int idxs[] = { 0, 1, 2 };
+    nvtxRangePushA("kernel");	
+    int idxs[] = { 0, 1, 2 };
 	volatile struct timespec compute_s, compute_f;
 	
     real *w0p;
@@ -387,12 +403,16 @@ int main(int argc, char* argv[])
 			wave13pt_h(nx, ny, ns, m0, m1, m2, w0p, w1p, w2p);
 #else
             if(version == UVM_HOST){
+                nvtxRangePushA("core_h");
                 wave13pt_h(nx, ny, ns, m0, m1, m2, w0p, w1p, w2p);
+                nvtxRangePop();
             } else { // kernel running on DEVICE
+                nvtxRangePushA("core_d");
 			    wave13pt_d<<<config.gridDim, config.blockDim, config.szshmem>>>(
 				    nx, ny, ns,
 				    config,
 				    m0, m1, m2, w0p, w1p, w2p);
+                nvtxRangePop();
 			    CUDA_SAFE_CALL(cudaGetLastError());
 			    CUDA_SAFE_CALL(cudaDeviceSynchronize());
             }
@@ -424,10 +444,12 @@ int main(int argc, char* argv[])
         w2 = w_local[idxs[2]];
     }
 #endif
+    nvtxRangePop();
 
 	//
 	// 5) Transfer output data back from device to host.
 	//
+    nvtxRangePushA("copy_back");
 #if defined(__CUDACC__)
 	volatile struct timespec save_s, save_f;
 	get_time(&save_s);
@@ -438,6 +460,7 @@ int main(int argc, char* argv[])
 	double save_t = get_time_diff((struct timespec*)&save_s, (struct timespec*)&save_f);
 	if (!no_timing) printf("data save time = %f sec (%f GB/sec)\n", save_t, szarrayb / (save_t * 1024 * 1024 * 1024));
 #endif
+    nvtxRangePop();
 
 	//
 	// 6) Deallocate device data buffers.
@@ -449,8 +472,11 @@ int main(int argc, char* argv[])
 #if defined(__CUDACC__)
     // For the final mean - account only the norm of the top
 	// most level (tracked by swapping idxs array of indexes).
+    nvtxRangePushA("final_mean");    
     f_mean(w1);
+    nvtxRangePop();
 
+    nvtxRangePushA("free");
 	volatile struct timespec free_s, free_f;
 	get_time(&free_s);
     if(version == DEFAULT){
@@ -474,8 +500,10 @@ int main(int argc, char* argv[])
 	    free(w1);
 	    free(w2);
     }
+    
 
 	fflush(stdout);
+    nvtxRangePop();
 
 	return 0;
 }
