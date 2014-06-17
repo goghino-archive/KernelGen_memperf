@@ -19,6 +19,8 @@
 
 #if defined(__CUDACC__)
     #include "cuda_profiling.h"
+    #include <cuda.h>
+    #include <curand_kernel.h>
 #endif
 
 //default stencil code
@@ -132,6 +134,66 @@ void wave13pt_d(const int nx, const int ny, const int ns,
 		}
 	}
 }
+
+extern "C" __global__ void init_curand(curandState *state, 
+                         const int nx, const int ny, const int ns,
+                         kernel_config_t config)
+{
+    printf("hello init\n");
+    int i_stride = (config.strideDim.x);
+	int j_stride = (config.strideDim.y);
+	int k_stride = (config.strideDim.z);
+	int k_offset = (blockIdx.z * blockDim.z + threadIdx.z);
+	int j_offset = (blockIdx.y * blockDim.y + threadIdx.y);
+	int i_offset = (blockIdx.x * blockDim.x + threadIdx.x);
+
+	int k_increment = k_stride;
+	int j_increment = j_stride;
+	int i_increment = i_stride;
+
+	for (int k = 2 + k_offset; k < ns - 2; k += k_increment)
+	{
+		for (int j = 2 + j_offset; j < ny - 2; j += j_increment)
+		{
+			for (int i = i_offset; i < nx; i += i_increment)
+			{
+				int id = (i) + nx * (j) + nx * ny * (k);
+                printf("hello %d\n",id);
+                curand_init(1337, id, 0, &state[id]);
+			}
+		}
+	}
+}
+
+extern "C" __global__ void init_grid_d(real* w0, real* w1, real* w2, curandState *state,
+                                        const int nx, const int ny, const int ns,
+                                        kernel_config_t config)
+{
+	int i_stride = (config.strideDim.x);
+	int j_stride = (config.strideDim.y);
+	int k_stride = (config.strideDim.z);
+	int k_offset = (blockIdx.z * blockDim.z + threadIdx.z);
+	int j_offset = (blockIdx.y * blockDim.y + threadIdx.y);
+	int i_offset = (blockIdx.x * blockDim.x + threadIdx.x);
+
+	int k_increment = k_stride;
+	int j_increment = j_stride;
+	int i_increment = i_stride;
+
+	for (int k = 2 + k_offset; k < ns - 2; k += k_increment)
+	{
+		for (int j = 2 + j_offset; j < ny - 2; j += j_increment)
+		{
+			for (int i = i_offset; i < nx; i += i_increment)
+			{
+				int id = (i) + nx * (j) + nx * ny * (k);
+                w0[id] = (curand_uniform(&state[id]) - 0.5)/2;
+                w1[id] = (curand_uniform(&state[id]) - 0.5)/2;
+                w2[id] = (curand_uniform(&state[id]) - 0.5)/2;
+			}
+		}
+	} 
+}
 #endif
 
 #define parse_arg(name, arg) \
@@ -145,7 +207,7 @@ void wave13pt_d(const int nx, const int ny, const int ns,
 #define real_rand() (((real)(rand() / (double)RAND_MAX) - 0.5) * 2)
 
 // init stencil grid by random data
-#define init_grid(a, b, c) \
+#define init_grid_h(a, b, c) \
 	for (int i = 0; i < szarray; i++) \
 	{ \
 		a[i] = real_rand(); \
@@ -216,8 +278,6 @@ int main(int argc, char* argv[])
 		    printf("Error allocating memory for arrays: %p, %p, %p\n", w0, w1, w2);
 		    exit(1);
 	    }
-
-        init_grid(w0, w1, w2);
     }
 
 	//
@@ -249,12 +309,39 @@ int main(int argc, char* argv[])
 	    CUDA_SAFE_CALL(cudaMallocManaged(&w0, szarrayb)); //data are not yet initialized
 	    CUDA_SAFE_CALL(cudaMallocManaged(&w1, szarrayb));
 	    CUDA_SAFE_CALL(cudaMallocManaged(&w2, szarrayb));
-        init_grid(w0, w1, w2);//here??
     }
 	get_time(&alloc_f);
 	double alloc_t = get_time_diff((struct timespec*)&alloc_s, (struct timespec*)&alloc_f);
 	if (!no_timing) printf("device buffer alloc time = %f sec\n", alloc_t);
 #endif
+
+#if defined(__CUDACC__)
+	CUDA_SAFE_CALL(cudaDeviceSetCacheConfig(cudaFuncCachePreferL1));
+	dim3 gridDim, blockDim, strideDim;
+	kernel_config_t config;
+	kernel_configure_gird(1, nx, ny, ns, &config);
+#endif
+
+    //random grid init
+    if(1) 
+    //if(version == DEFAULT)
+    {
+        //host init
+        init_grid_h(w0, w1, w2);
+    }else{
+        //device init (prevent memory movements between device-host)
+        curandState *state;
+        CUDA_SAFE_CALL(cudaMalloc(&state, nx*ny*ns*sizeof(curandState)));
+        init_curand<<<config.gridDim, config.blockDim>>>(state, nx, ny, ns, config);
+	    CUDA_SAFE_CALL(cudaGetLastError());
+	    CUDA_SAFE_CALL(cudaDeviceSynchronize());
+        fprintf(stderr, "curand initialized\n");    
+        init_grid_d<<<config.gridDim, config.blockDim>>>(w0,w1,w2,state,nx,ny,ns,config);
+	    CUDA_SAFE_CALL(cudaGetLastError());
+	    CUDA_SAFE_CALL(cudaDeviceSynchronize());
+        fprintf(stderr, "w0, w1, w2 initialized\n");    
+        cudaFree(state);
+    }
 
 	//
 	// 3) Transfer data from host to device and leave it there,
@@ -279,12 +366,6 @@ int main(int argc, char* argv[])
 	//
 	int idxs[] = { 0, 1, 2 };
 	volatile struct timespec compute_s, compute_f;
-#if defined(__CUDACC__)
-	CUDA_SAFE_CALL(cudaDeviceSetCacheConfig(cudaFuncCachePreferL1));
-	dim3 gridDim, blockDim, strideDim;
-	kernel_config_t config;
-	kernel_configure_gird(1, nx, ny, ns, &config);
-#endif
 	
     real *w0p;
     real *w1p;
@@ -399,3 +480,5 @@ int main(int argc, char* argv[])
 	return 0;
 }
 
+//TODO
+//grid initialization by device does not work, kernel gets stalled at init_curand<<<...>>>()

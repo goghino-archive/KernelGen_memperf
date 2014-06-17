@@ -39,7 +39,7 @@ VERSION ?= 0
 all: wave13pt
 
 wave13pt: wave13pt.o timing.o cuda_profiling.o
-	$(SILENT)$(NVCC) $^ -o $@ -lrt -Xlinker --wrap=cudaLaunch -Xcompiler -rdynamic
+	$(SILENT)$(NVCC) $^ -o $@ -I /opt/cuda/lib -lrt -Xlinker --wrap=cudaLaunch -Xcompiler -rdynamic
 
 wave13pt.o: ../wave13pt.cu ../timing.h cuda_profiling.h
 	$(SILENT)$(NVCC) -Dreal=$(real) -c $< -o $@
