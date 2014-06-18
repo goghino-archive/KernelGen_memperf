@@ -137,36 +137,24 @@ void wave13pt_d(const int nx, const int ny, const int ns,
 	}
 }
 
+/**
+    Init cuda PRNG generator by seed, seed equal to id
+*/
 extern "C" __global__ void init_curand(curandState *state, 
                          const int nx, const int ny, const int ns,
                          kernel_config_t config)
 {
-    printf("hello init\n");
-    int i_stride = (config.strideDim.x);
-	int j_stride = (config.strideDim.y);
-	int k_stride = (config.strideDim.z);
-	int k_offset = (blockIdx.z * blockDim.z + threadIdx.z);
-	int j_offset = (blockIdx.y * blockDim.y + threadIdx.y);
-	int i_offset = (blockIdx.x * blockDim.x + threadIdx.x);
+	int k = (blockIdx.z * blockDim.z + threadIdx.z);
+	int j = (blockIdx.y * blockDim.y + threadIdx.y);
+	int i = (blockIdx.x * blockDim.x + threadIdx.x);
 
-	int k_increment = k_stride;
-	int j_increment = j_stride;
-	int i_increment = i_stride;
+	int id = (i) + nx * (j) + nx * ny * (k);
+    curand_init(1337, id, 0, &state[id]);
 
-	for (int k = 2 + k_offset; k < ns - 2; k += k_increment)
-	{
-		for (int j = 2 + j_offset; j < ny - 2; j += j_increment)
-		{
-			for (int i = i_offset; i < nx; i += i_increment)
-			{
-				int id = (i) + nx * (j) + nx * ny * (k);
-                printf("hello %d\n",id);
-                curand_init(1337, id, 0, &state[id]);
-			}
-		}
-	}
 }
-
+/**
+    Init grids w0, w1, w2 by random numbers
+*/
 extern "C" __global__ void init_grid_d(real* w0, real* w1, real* w2, curandState *state,
                                         const int nx, const int ny, const int ns,
                                         kernel_config_t config)
@@ -182,16 +170,49 @@ extern "C" __global__ void init_grid_d(real* w0, real* w1, real* w2, curandState
 	int j_increment = j_stride;
 	int i_increment = i_stride;
 
-	for (int k = 2 + k_offset; k < ns - 2; k += k_increment)
+    int id = (i_offset) + nx * (j_offset) + nx * ny * (k_offset);
+
+	for (int k = k_offset; k < ns ; k += k_increment)
 	{
-		for (int j = 2 + j_offset; j < ny - 2; j += j_increment)
+		for (int j = j_offset; j < ny ; j += j_increment)
 		{
 			for (int i = i_offset; i < nx; i += i_increment)
 			{
-				int id = (i) + nx * (j) + nx * ny * (k);
                 w0[id] = (curand_uniform(&state[id]) - 0.5)/2;
                 w1[id] = (curand_uniform(&state[id]) - 0.5)/2;
                 w2[id] = (curand_uniform(&state[id]) - 0.5)/2;
+			}
+		}
+	} 
+}
+
+/**
+    Init grids w0, w1, w2 by constant numbers
+*/
+extern "C" __global__ void init_grid_d_const(real* w0, real* w1, real* w2,
+                                        const int nx, const int ny, const int ns,
+                                        kernel_config_t config)
+{
+	int i_stride = (config.strideDim.x);
+	int j_stride = (config.strideDim.y);
+	int k_stride = (config.strideDim.z);
+	int k_offset = (blockIdx.z * blockDim.z + threadIdx.z);
+	int j_offset = (blockIdx.y * blockDim.y + threadIdx.y);
+	int i_offset = (blockIdx.x * blockDim.x + threadIdx.x);
+
+	int k_increment = k_stride;
+	int j_increment = j_stride;
+	int i_increment = i_stride;
+
+	for (int k = k_offset; k < ns ; k += k_increment)
+	{
+		for (int j = j_offset; j < ny ; j += j_increment)
+		{
+			for (int i = i_offset; i < nx; i += i_increment)
+			{
+                _A(w0, k, j, i) = 0.1;
+                _A(w1, k, j, i) = 0.1;
+                _A(w2, k, j, i) = 0.1;
 			}
 		}
 	} 
@@ -335,24 +356,28 @@ int main(int argc, char* argv[])
 
     //random grid init
     nvtxRangePushA("grid_init");
-    if(1) 
-    //if(version == DEFAULT)
+    if(version == DEFAULT)
     {
         //host init
         init_grid_h(w0, w1, w2);
     }else{
-        //device init (prevent memory movements between device-host)
+        //device init (prevent memory movements between device-host when using UVM)
+        
+        /*
         curandState *state;
         CUDA_SAFE_CALL(cudaMalloc(&state, nx*ny*ns*sizeof(curandState)));
         init_curand<<<config.gridDim, config.blockDim>>>(state, nx, ny, ns, config);
 	    CUDA_SAFE_CALL(cudaGetLastError());
-	    CUDA_SAFE_CALL(cudaDeviceSynchronize());
-        fprintf(stderr, "curand initialized\n");    
+	    //CUDA_SAFE_CALL(cudaDeviceSynchronize());
         init_grid_d<<<config.gridDim, config.blockDim>>>(w0,w1,w2,state,nx,ny,ns,config);
 	    CUDA_SAFE_CALL(cudaGetLastError());
-	    CUDA_SAFE_CALL(cudaDeviceSynchronize());
-        fprintf(stderr, "w0, w1, w2 initialized\n");    
+	    //CUDA_SAFE_CALL(cudaDeviceSynchronize());
         cudaFree(state);
+        */
+
+        init_grid_d_const<<<config.gridDim, config.blockDim>>>(w0,w1,w2,nx,ny,ns,config);
+	    CUDA_SAFE_CALL(cudaGetLastError());
+	    CUDA_SAFE_CALL(cudaDeviceSynchronize());
     }
     nvtxRangePop();
 
