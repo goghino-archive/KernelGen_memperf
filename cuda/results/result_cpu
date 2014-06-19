@@ -1,0 +1,62 @@
+Running test (single thread)...
+rm -rf *.o wave13pt wave13pt_cpu
+nvcc -I. -I.. -O3 -arch=sm_30 -Xcompiler -lnvToolsExt  -Dreal=float -c ../wave13pt.cu -o wave13pt.o
+nvcc -I. -I.. -O3 -arch=sm_30 -Xcompiler -lnvToolsExt  -c ../timing.c -o timing.o
+nvcc -I. -I.. -O3 -arch=sm_30 -Xcompiler -lnvToolsExt  -c cuda_profiling.cu -o cuda_profiling.o
+nvcc -I. -I.. -O3 -arch=sm_30 -Xcompiler -lnvToolsExt  wave13pt.o timing.o cuda_profiling.o -o wave13pt -I /opt/cuda/lib -lrt -lnvToolsExt -Xlinker --wrap=cudaLaunch -Xcompiler -rdynamic
+gcc -O3 -D_GNU_SOURCE -std=c99  -Dreal=float -c ../wave13pt.c -o wave13pt_cpu.o
+gcc -O3 -D_GNU_SOURCE -std=c99  -c ../timing.c -o timing_cpu.o
+gcc -O3 -D_GNU_SOURCE -std=c99  wave13pt_cpu.o timing_cpu.o -o wave13pt_cpu -lrt
+UVM
+5.747996
+5.974109
+5.777624
+5.749514
+5.752284
+5.761765
+5.741489
+5.774528
+6.099430
+5.941700
+no UVM
+3.374256
+3.348744
+3.340829
+3.474191
+3.508642
+3.550580
+3.341330
+3.358360
+3.563781
+3.359865
+Running test (multi thread)...
+rm -rf *.o wave13pt wave13pt_cpu
+nvcc -I. -I.. -O3 -arch=sm_30 -Xcompiler -lnvToolsExt -Xcompiler -fopenmp -lgomp -Dreal=float -c ../wave13pt.cu -o wave13pt.o
+nvcc -I. -I.. -O3 -arch=sm_30 -Xcompiler -lnvToolsExt -Xcompiler -fopenmp -lgomp -c ../timing.c -o timing.o
+nvcc -I. -I.. -O3 -arch=sm_30 -Xcompiler -lnvToolsExt -Xcompiler -fopenmp -lgomp -c cuda_profiling.cu -o cuda_profiling.o
+nvcc -I. -I.. -O3 -arch=sm_30 -Xcompiler -lnvToolsExt -Xcompiler -fopenmp -lgomp wave13pt.o timing.o cuda_profiling.o -o wave13pt -I /opt/cuda/lib -lrt -lnvToolsExt -Xlinker --wrap=cudaLaunch -Xcompiler -rdynamic
+gcc -O3 -D_GNU_SOURCE -std=c99 -fopenmp -Dreal=float -c ../wave13pt.c -o wave13pt_cpu.o
+gcc -O3 -D_GNU_SOURCE -std=c99 -fopenmp -c ../timing.c -o timing_cpu.o
+gcc -O3 -D_GNU_SOURCE -std=c99 -fopenmp wave13pt_cpu.o timing_cpu.o -o wave13pt_cpu -lrt
+UVM
+4.475177
+4.313561
+4.297007
+3.712935
+4.609550
+4.439827
+4.174482
+4.297132
+4.001024
+3.602805
+no UVM
+0.967499
+0.939468
+0.954300
+0.958810
+0.946473
+0.958500
+0.896685
+0.923059
+0.968181
+0.902542

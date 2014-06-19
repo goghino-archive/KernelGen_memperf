@@ -1,0 +1,22 @@
+#!/bin/bash
+
+# test for comparison of UVM and non-UVM performance of kernel running on device
+
+echo "Running test..."
+for i in {0..9}
+  do
+     make test_uvm_d >> tmp_uvm
+     make test_default_d >> tmp_default 
+ done
+
+#measure UVM compute time (including memory movements)
+echo "UVM"
+grep "compute time" < tmp_uvm | awk -F ' ' '{print $4}'
+
+#measure explicit memory movement + compute time
+echo "no UVM + load"
+grep "compute time" < tmp_default | awk -F ' ' '{print $4}'
+echo "--"
+grep "data load time" < tmp_default | awk -F ' ' '{print $5}'
+
+rm -f tmp_*

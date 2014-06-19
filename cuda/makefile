@@ -30,10 +30,14 @@ OMP ?= 1
 NVCCFLAGS ?= -Xcompiler -lnvToolsExt
 ifeq ($(OMP), 1)
 NVCCFLAGS += -Xcompiler -fopenmp
+GCCFLAGS += -fopenmp
 LIB ?= -lgomp
 endif
 
 NVCC ?= nvcc -I. -I.. -O3 -arch=sm_$(GPUARCH) $(NVCCFLAGS) $(LIB)
+# GCC compiler/linker options
+GCC ?= gcc -O3 -D_GNU_SOURCE -std=c99 $(GCCFLAGS)
+LDFLAGS ?= -I/opt/cuda/include -L/opt/cuda/lib -lnvToolsExt
 
 # Default problem domain dimensions
 NX ?= 512
@@ -44,10 +48,20 @@ NT ?= 10
 # 0 - default stencil code
 # 1 - UVM memory, function running on host
 # 2 - UVM memory, function running on device
-VERSION ?= 0
+DEFAULT ?= 0
+UVM_HOST ?= 1
+UVM_DEVICE ?= 2
 
-all: wave13pt
+# 1 - grid initialized on the host 
+# 2 - grid initialized on the device
+HOST_INIT ?= 1
+DEVICE_INIT ?= 2
 
+all: wave13pt wave13pt_cpu
+
+#-------------------------------------------------------------------------------
+#                                   GPU BUILD
+#-------------------------------------------------------------------------------
 wave13pt: wave13pt.o timing.o cuda_profiling.o
 	$(SILENT)$(NVCC) $^ -o $@ -I /opt/cuda/lib -lrt -lnvToolsExt -Xlinker --wrap=cudaLaunch -Xcompiler -rdynamic
 
@@ -60,38 +74,54 @@ timing.o: ../timing.c ../timing.h
 cuda_profiling.o: cuda_profiling.cu cuda_profiling.h
 	$(SILENT)$(NVCC) -c $< -o $@
 
-clean:
-	$(SILENT)rm -rf *.o wave13pt
+#-------------------------------------------------------------------------------
+#                                   CPU BUILD
+#-------------------------------------------------------------------------------
+wave13pt_cpu: wave13pt_cpu.o timing_cpu.o
+	$(SILENT)$(GCC) $^ -o $@ -lrt
+
+wave13pt_cpu.o: ../wave13pt.c ../timing.h
+	$(SILENT)$(GCC) -Dreal=$(real) -c $< -o $@
+
+timing_cpu.o: ../timing.c ../timing.h
+	$(SILENT)$(GCC) -c $< -o $@
 
 #-------------------------------------------------------------------------------
-#-------------------------------------------------------------------------------
-test: wave13pt
-	$(SILENT)./$< $(NX) $(NY) $(NS) $(NT) $(VERSION)
+#                                   TESTS SECTION
 #-------------------------------------------------------------------------------
 test_default_d: wave13pt
-	$(SILENT)./$< $(NX) $(NY) $(NS) $(NT) 0
+	$(SILENT)./$< $(NX) $(NY) $(NS) $(NT) $(DEFAULT) $(HOST_INIT)
+
+test_default_h: wave13pt_cpu
+	$(SILENT)./$< $(NX) $(NY) $(NS) $(NT) $(DEFAULT) $(HOST_INIT)
 
 test_uvm_h_force: wave13pt
-	$(SILENT) CUDA_MANAGED_FORCE_DEVICE_ALLOC=1 ./$< $(NX) $(NY) $(NS) $(NT) 1
+	$(SILENT) CUDA_MANAGED_FORCE_DEVICE_ALLOC=1 ./$< $(NX) $(NY) $(NS) $(NT) $(UVM_HOST) $(DEVICE_INIT)
 
-test_uvm_d: wave13pt
-	$(SILENT)./$< $(NX) $(NY) $(NS) $(NT) 2
+test_uvm_h: wave13pt
+	$(SILENT) ./$< $(NX) $(NY) $(NS) $(NT) $(UVM_HOST) $(DEVICE_INIT)
 
 test_uvm_d_force: wave13pt
-	$(SILENT) CUDA_MANAGED_FORCE_DEVICE_ALLOC=1 ./$< $(NX) $(NY) $(NS) $(NT) 2
+	$(SILENT) CUDA_MANAGED_FORCE_DEVICE_ALLOC=1 ./$< $(NX) $(NY) $(NS) $(NT) $(UVM_DEVICE) $(HOST_INIT)
+
+test_uvm_d: wave13pt
+	$(SILENT)./$< $(NX) $(NY) $(NS) $(NT) $(UVM_DEVICE) $(HOST_INIT)
+
 #-------------------------------------------------------------------------------
 #-------------------------------------------------------------------------------
+clean:
+	$(SILENT)rm -rf *.o wave13pt wave13pt_cpu
 
 check: wave13pt
-	$(SILENT)cuda-memcheck ./$< $(NX) $(NY) $(NS) $(NT) $(VERSION)
+	$(SILENT)cuda-memcheck ./$< $(NX) $(NY) $(NS) $(NT) $(DEFAULT) $(HOST_INIT)
 
 ifeq ($(real), float)
 roofline: wave13pt
-	$(SILENT)PROFILING_FNAME=`cat kernel` ./$< $(NX) $(NY) $(NS) $(NT) $(VERSION) && \
+	$(SILENT)PROFILING_FNAME=`cat kernel` ./$< $(NX) $(NY) $(NS) $(NT) $(DEFAULT) $(HOST_INIT) && \
 		nvprof --metrics flops_sp,dram_read_throughput,dram_write_throughput ./$< $(NX) $(NY) $(NS) $(NT)
 endif
 ifeq ($(real), double)
 roofline: wave13pt
-	$(SILENT)PROFILING_FNAME=`cat kernel` ./$< $(NX) $(NY) $(NS) $(NT) $(VERSION) && \
+	$(SILENT)PROFILING_FNAME=`cat kernel` ./$< $(NX) $(NY) $(NS) $(NT) $(DEFAULT) $(HOST_INIT) && \
 		nvprof --metrics flops_sp,dram_read_throughput,dram_write_throughput ./$< $(NX) $(NY) $(NS) $(NT)
 endif

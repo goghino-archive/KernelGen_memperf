@@ -16,9 +16,9 @@
 #include <stdlib.h>
 
 #include "timing.h"
-#include "nvToolsExt.h"
 
 #if defined(__CUDACC__)
+    #include "nvToolsExt.h"
     #include "cuda_profiling.h"
     #include <cuda.h>
     #include <curand_kernel.h>
@@ -31,6 +31,10 @@
 //UVM memory, function running on device
 #define UVM_DEVICE 2
 
+//specifies where data are generated/initialized
+#define HOST_INIT 1
+#define DEVICE_INIT 2
+
 // Memory alignment, for vectorization on MIC.
 // 4096 should be best for memory transfers over PCI-E.
 #define MEMALIGN 4096
@@ -38,7 +42,7 @@
 #define _A(array, is, iy, ix) (array[(ix) + nx * (iy) + nx * ny * (is)])
 
 /**
-    Host version
+    Host version_k
 */
 void wave13pt_h(const int nx, const int ny, const int ns,
 	const real m0, const real m1, const real m2,
@@ -61,7 +65,7 @@ void wave13pt_h(const int nx, const int ny, const int ns,
 	int i_increment = i_stride;
 
 #if defined(_OPENMP)
-    //fprintf(stderr, "OPENMP version\n");
+    //fprintf(stderr, "OPENMP version_k\n");
 	#pragma omp parallel for
 #endif
 	for (int k = 2 + k_offset; k < ns - 2; k += k_increment)
@@ -88,7 +92,7 @@ void wave13pt_h(const int nx, const int ny, const int ns,
 }
 
 /**
-    Device version
+    Device version_k
 */
 #if defined(__CUDACC__)
 extern "C" __global__
@@ -249,10 +253,12 @@ extern "C" __global__ void init_grid_d_const(real* w0, real* w1, real* w2,
 
 int main(int argc, char* argv[])
 {
+#if defined(__CUDACC__)
 	nvtxRangePushA("parse_args");
-	if (argc != 6)
+#endif
+	if (argc != 7)
 	{
-		printf("Usage: %s <nx> <ny> <ns> <nt> <version>\n", argv[0]);
+		printf("Usage: %s <nx> <ny> <ns> <nt> <version_k> <version_i>\n", argv[0]);
 		exit(1);
 	}
 
@@ -274,14 +280,17 @@ int main(int argc, char* argv[])
 	parse_arg(ny, argv[2]);
 	parse_arg(ns, argv[3]);
 	parse_arg(nt, argv[4]);
-	parse_arg(version, argv[5]);
+	parse_arg(version_k, argv[5]);//where kernel is run
+    parse_arg(version_i, argv[6]);//where data are generated/initialized
 
 	real m0 = real_rand();
 	real m1 = real_rand() / 6.;
 	real m2 = real_rand() / 6.;
 
 	printf("m0 = %f, m1 = %f, m2 = %f\n", m0, m1, m2);
+#if defined(__CUDACC__)
 	nvtxRangePop();
+#endif
 
 	size_t szarray = (size_t)nx * ny * ns;
 	size_t szarrayb = szarray * sizeof(real);
@@ -293,8 +302,10 @@ int main(int argc, char* argv[])
 
     real mean = 0.0f;
 
+#if defined(__CUDACC__)
     nvtxRangePushA("host_allocation");
-    if(version == DEFAULT){//allocate memory on host	
+#endif
+    if(version_k == DEFAULT){//allocate memory on host	
         w0 = (real*)memalign(MEMALIGN, szarrayb);
 	    w1 = (real*)memalign(MEMALIGN, szarrayb);
 	    w2 = (real*)memalign(MEMALIGN, szarrayb);
@@ -305,14 +316,16 @@ int main(int argc, char* argv[])
 		    exit(1);
 	    }
     }
+#if defined(__CUDACC__)
     nvtxRangePop();
+#endif
 
 	//
 	// 1) Perform an empty offload, that should strip
 	// the initialization time from further offloads.
-	//
-    nvtxRangePushA("empty_offload");
+	//  
 #if defined(__CUDACC__)
+    nvtxRangePushA("empty_offload");
 	volatile struct timespec init_s, init_f;
 	get_time(&init_s);
 	int count = 0;
@@ -320,8 +333,9 @@ int main(int argc, char* argv[])
 	get_time(&init_f);
 	double init_t = get_time_diff((struct timespec*)&init_s, (struct timespec*)&init_f);
 	if (!no_timing) printf("init time = %f sec\n", init_t);
-#endif
     nvtxRangePop();
+#endif
+    
 
 	//
 	// 2) Allocate data on device, but do not copy anything.
@@ -331,7 +345,7 @@ int main(int argc, char* argv[])
     nvtxRangePushA("cuda_alloc");
 	volatile struct timespec alloc_s, alloc_f;
 	get_time(&alloc_s);
-    if(version == DEFAULT) {//explicit memory model
+    if(version_k == DEFAULT) {//explicit memory model
 	    CUDA_SAFE_CALL(cudaMalloc(&w0_dev, szarrayb));
 	    CUDA_SAFE_CALL(cudaMalloc(&w1_dev, szarrayb));
 	    CUDA_SAFE_CALL(cudaMalloc(&w2_dev, szarrayb));
@@ -353,15 +367,15 @@ int main(int argc, char* argv[])
 	kernel_configure_gird(1, nx, ny, ns, &config);
 #endif
 
-
-    //random grid init
+#if defined(__CUDACC__)
     nvtxRangePushA("grid_init");
-    if(version == DEFAULT)
+#endif
+    if(version_i == HOST_INIT)
     {
         //host init
         init_grid_h(w0, w1, w2);
     }else{
-        //device init (prevent memory movements between device-host when using UVM)
+        //device init
         
         /*
         curandState *state;
@@ -374,12 +388,15 @@ int main(int argc, char* argv[])
 	    //CUDA_SAFE_CALL(cudaDeviceSynchronize());
         cudaFree(state);
         */
-
+#if defined(__CUDACC__)
         init_grid_d_const<<<config.gridDim, config.blockDim>>>(w0,w1,w2,nx,ny,ns,config);
 	    CUDA_SAFE_CALL(cudaGetLastError());
 	    CUDA_SAFE_CALL(cudaDeviceSynchronize());
+#endif
     }
+#if defined(__CUDACC__)
     nvtxRangePop();
+#endif
 
 	//
 	// 3) Transfer data from host to device and leave it there,
@@ -389,7 +406,7 @@ int main(int argc, char* argv[])
     nvtxRangePushA("cuda_memcpy_explicit");
 	volatile struct timespec load_s, load_f;
 	get_time(&load_s);
-    if(version == DEFAULT){
+    if(version_k == DEFAULT){
 	    CUDA_SAFE_CALL(cudaMemcpy(w0_dev, w0, szarrayb, cudaMemcpyHostToDevice));
 	    CUDA_SAFE_CALL(cudaMemcpy(w1_dev, w1, szarrayb, cudaMemcpyHostToDevice));
 	    CUDA_SAFE_CALL(cudaMemcpy(w2_dev, w2, szarrayb, cudaMemcpyHostToDevice));
@@ -404,7 +421,9 @@ int main(int argc, char* argv[])
 	// 4) Perform data processing iterations, keeping all data
 	// on device.
 	//
+#if defined(__CUDACC__)
     nvtxRangePushA("kernel");	
+#endif
     int idxs[] = { 0, 1, 2 };
 	volatile struct timespec compute_s, compute_f;
 	
@@ -414,7 +433,7 @@ int main(int argc, char* argv[])
 #if !defined(__CUDACC__)
 		w0p = w0, w1p = w1, w2p = w2;
 #else
-        if(version == DEFAULT){
+        if(version_k == DEFAULT){
 		    w0p = w0_dev, w1p = w1_dev, w2p = w2_dev;
         }else{
             w0p = w0, w1p = w1, w2p = w2;
@@ -427,7 +446,7 @@ int main(int argc, char* argv[])
 #if !defined(__CUDACC__)
 			wave13pt_h(nx, ny, ns, m0, m1, m2, w0p, w1p, w2p);
 #else
-            if(version == UVM_HOST){
+            if(version_k == UVM_HOST){
                 nvtxRangePushA("core_h");
                 wave13pt_h(nx, ny, ns, m0, m1, m2, w0p, w1p, w2p);
                 nvtxRangePop();
@@ -457,7 +476,7 @@ int main(int argc, char* argv[])
     //final mean
     f_mean(w1);
 #else
-    if(version == DEFAULT){
+    if(version_k == DEFAULT){
 	    real* w_local[] = { w0_dev, w1_dev, w2_dev }; 
 	    w0_dev = w_local[idxs[0]];
         w1_dev = w_local[idxs[1]];
@@ -469,23 +488,27 @@ int main(int argc, char* argv[])
         w2 = w_local[idxs[2]];
     }
 #endif
+
+#if defined(__CUDACC__)
     nvtxRangePop();
+#endif
 
 	//
 	// 5) Transfer output data back from device to host.
-	//
-    nvtxRangePushA("copy_back");
+	//   
 #if defined(__CUDACC__)
+    nvtxRangePushA("copy_back");
 	volatile struct timespec save_s, save_f;
 	get_time(&save_s);
-    if(version == DEFAULT) {
+    if(version_k == DEFAULT) {
     	CUDA_SAFE_CALL(cudaMemcpy(w1, w1_dev, szarrayb, cudaMemcpyDeviceToHost));
     }
 	get_time(&save_f);
 	double save_t = get_time_diff((struct timespec*)&save_s, (struct timespec*)&save_f);
 	if (!no_timing) printf("data save time = %f sec (%f GB/sec)\n", save_t, szarrayb / (save_t * 1024 * 1024 * 1024));
-#endif
     nvtxRangePop();
+#endif
+    
 
 	//
 	// 6) Deallocate device data buffers.
@@ -504,7 +527,7 @@ int main(int argc, char* argv[])
     nvtxRangePushA("free");
 	volatile struct timespec free_s, free_f;
 	get_time(&free_s);
-    if(version == DEFAULT){
+    if(version_k == DEFAULT){
 	    CUDA_SAFE_CALL(cudaFree(w0_dev));
 	    CUDA_SAFE_CALL(cudaFree(w1_dev));
 	    CUDA_SAFE_CALL(cudaFree(w2_dev));
@@ -516,9 +539,10 @@ int main(int argc, char* argv[])
 	get_time(&free_f);
 	double free_t = get_time_diff((struct timespec*)&free_s, (struct timespec*)&free_f);
 	if (!no_timing) printf("device buffer free time = %f sec\n", free_t);
+    nvtxRangePop();
 #endif
 
-    if(version == DEFAULT){
+    if(version_k == DEFAULT){
 
         //free host memory
 	    free(w0);
@@ -528,7 +552,7 @@ int main(int argc, char* argv[])
     
 
 	fflush(stdout);
-    nvtxRangePop();
+    
 
 	return 0;
 }
