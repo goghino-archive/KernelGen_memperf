@@ -456,9 +456,9 @@ int main(int argc, char* argv[])
 				    nx, ny, ns,
 				    config,
 				    m0, m1, m2, w0p, w1p, w2p);
-                nvtxRangePop();
 			    CUDA_SAFE_CALL(cudaGetLastError());
 			    CUDA_SAFE_CALL(cudaDeviceSynchronize());
+                nvtxRangePop();
             }
 #endif
 			real* w = w0p; w0p = w1p; w1p = w2p; w2p = w;
@@ -521,7 +521,14 @@ int main(int argc, char* argv[])
     // For the final mean - account only the norm of the top
 	// most level (tracked by swapping idxs array of indexes).
     nvtxRangePushA("final_mean");    
+    //volatile struct timespec save_s, save_f;
+    get_time(&save_s);
+
     f_mean(w1);
+
+    get_time(&save_f);
+    save_t = get_time_diff((struct timespec*)&save_s, (struct timespec*)&save_f);
+    if (!no_timing) printf("final mean time = %f sec\n", save_t);
     nvtxRangePop();
 
     nvtxRangePushA("free");

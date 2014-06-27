@@ -9,14 +9,31 @@ for i in {0..9}
      make test_default_d >> tmp_default 
  done
 
+echo "Profiling..."
+rm -f profile_uvm_d profile_default_d
+nvprof -o profile_uvm_d --unified-memory-profiling per-process-device -s ./wave13pt 512 256 256 10 2 1
+nvprof -o profile_nouvm_d --unified-memory-profiling per-process-device -s ./wave13pt 512 256 256 10 0 1
+
+
 #measure UVM compute time (including memory movements)
 echo "UVM"
+echo "compute time --"
 grep "compute time" < tmp_uvm | awk -F ' ' '{print $4}'
 
+echo "final mean t--"
+grep "final mean time" < tmp_uvm | awk -F ' ' '{print $5}'
+
 #measure explicit memory movement + compute time
-echo "no UVM + load"
+echo "no UVM"
+echo "compute time --"
 grep "compute time" < tmp_default | awk -F ' ' '{print $4}'
-echo "--"
+
+echo "data load t--"
 grep "data load time" < tmp_default | awk -F ' ' '{print $5}'
 
+echo "data save t--"
+grep "data save time" < tmp_default | awk -F ' ' '{print $5}'
+
+echo "final mean t--"
+grep "final mean time" < tmp_default | awk -F ' ' '{print $5}'
 rm -f tmp_*
