@@ -1,0 +1,71 @@
+#!/bin/bash
+
+NX=512
+NY=256
+NZ=256
+NT=10
+
+# test for comparison of UVM and non-UVM performance of kernel running on device
+
+echo "Running test..."
+for i in {0..9}
+  do
+     ./wave13pt $NX $NY $NZ $NT 0 1 >> tmp_default
+     ./wave13pt $NX $NY $NZ $NT 2 1 >> tmp_uvm
+      
+     ./wave13pt $NX $NY $NZ $NT 3 1 >> tmp_pinned
+     ./wave13pt $NX $NY $NZ $NT 4 1 >> tmp_mapped
+ done
+
+echo "Profiling..."
+rm -f profile_uvm_d profile_default_d
+nvprof -o profile_uvm_d --unified-memory-profiling per-process-device -s ./wave13pt $NX $NY $NZ $NT 2 1
+nvprof -o profile_nouvm_d --unified-memory-profiling per-process-device -s ./wave13pt $NX $NY $NZ $NT  0 1
+nvprof -o profile_pinned --unified-memory-profiling per-process-device -s ./wave13pt $NX $NY $NZ $NT  3 1
+nvprof -o profile_mapped --unified-memory-profiling per-process-device -s ./wave13pt $NX $NY $NZ $NT  4 1
+
+#measure UVM compute time (including memory movements)
+echo "###################  UVM  ###########################"
+echo "compute time --"
+grep "compute time" < tmp_uvm | awk -F ' ' '{print $4}'
+
+echo "final mean t--"
+grep "final mean time" < tmp_uvm | awk -F ' ' '{print $5}'
+
+#measure explicit memory movement + compute time
+echo "###################  no UVM  ###########################"
+echo "data load t--"
+grep "data load time" < tmp_default | awk -F ' ' '{print $5}'
+
+echo "compute time --"
+grep "compute time" < tmp_default | awk -F ' ' '{print $4}'
+
+echo "data save t--"
+grep "data save time" < tmp_default | awk -F ' ' '{print $5}'
+
+echo "final mean t--"
+grep "final mean time" < tmp_default | awk -F ' ' '{print $5}'
+
+#measure explicit memory movement + compute time
+echo "###################  PINNED  ###########################"
+echo "data load t--"
+grep "data load time" < tmp_pinned | awk -F ' ' '{print $5}'
+
+echo "compute time --"
+grep "compute time" < tmp_pinned | awk -F ' ' '{print $4}'
+
+echo "data save t--"
+grep "data save time" < tmp_pinned | awk -F ' ' '{print $5}'
+
+echo "final mean t--"
+grep "final mean time" < tmp_pinned | awk -F ' ' '{print $5}'
+
+#measure explicit memory movement + compute time
+echo "###################  MAPPED  ###########################"
+echo "compute time --"
+grep "compute time" < tmp_mapped | awk -F ' ' '{print $4}'
+
+echo "final mean t--"
+grep "final mean time" < tmp_mapped | awk -F ' ' '{print $5}'
+
+rm -f tmp_*

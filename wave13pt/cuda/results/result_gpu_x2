@@ -1,0 +1,90 @@
+Running test...
+Profiling...
+m0 = 0.680375, m1 = -0.035206, m2 = 0.094366
+init time = 0.361431 sec
+device buffer alloc time = 0.310618 sec
+initial mean = -0.000023
+data load time = 0.000000 sec (9036144.578313 GB/sec)
+compute time = 0.427658 sec
+data save time = 0.000000 sec (4545454.545455 GB/sec)
+final mean = 0.000068
+final mean time = 0.694508 sec
+device buffer free time = 0.017391 sec
+m0 = 0.680375, m1 = -0.035206, m2 = 0.094366
+init time = 0.390454 sec
+device buffer alloc time = 0.294009 sec
+initial mean = -0.000023
+data load time = 0.282730 sec (2.652709 GB/sec)
+compute time = 0.195798 sec
+data save time = 0.092622 sec (2.699140 GB/sec)
+final mean = 0.000068
+final mean time = 0.089556 sec
+device buffer free time = 0.001469 sec
+UVM
+compute time --
+0.389442
+0.388364
+0.364253
+0.360442
+0.366766
+0.361093
+0.430657
+0.433023
+0.419185
+0.419649
+final mean t--
+0.708800
+0.694995
+0.632348
+0.632027
+0.635753
+0.632069
+0.692501
+0.729316
+0.693997
+0.693195
+no UVM
+compute time --
+0.144300
+0.144337
+0.144494
+0.144378
+0.144505
+0.144512
+0.195110
+0.195143
+0.195247
+0.195258
+data load t--
+0.276871
+0.191170
+0.274061
+0.191060
+0.274383
+0.193068
+0.281165
+0.283560
+0.283342
+0.285536
+data save t--
+0.074735
+0.063538
+0.070095
+0.063500
+0.071545
+0.065027
+0.089424
+0.092494
+0.089497
+0.089805
+final mean t--
+0.081246
+0.080481
+0.088881
+0.080528
+0.081095
+0.080450
+0.080423
+0.089018
+0.080555
+0.080513
